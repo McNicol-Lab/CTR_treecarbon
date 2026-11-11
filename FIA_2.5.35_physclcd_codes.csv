@@ -1,0 +1,17 @@
+﻿PHYSCLCD,phys_cat,phys_type,Description
+11,xeric,Dry Tops,Ridge tops with thin rock outcrops and considerable exposure to sun and wind
+12,xeric,Dry Slopes,Slopes with thin rock outcrops and considerable exposure to sun and wind; includes most steep slopes with southern or western exposure
+13,xeric,Deep Sands,Sites with deep sandy surface subject to rapid moisture loss after precipitation
+19,xeric,Other Xeric,All dry physiographic sites not described above
+21,mesic,Flatwoods,Flat or level sites outside floodplains; excludes deep sands and wet sites
+22,mesic,Rolling Uplands,Hills and gently rolling terrain with small streams; excludes deep sands and hydric sites
+23,mesic,Moist Slopes and Coves,"Moist, fertile slopes and coves often with northern/eastern exposure"
+24,mesic,Narrow Floodplains/Bottomlands,"Floodplains < 1/4 mile wide; occasionally flooded, usually well drained"
+25,mesic,Broad Floodplains/Bottomlands,"Floodplains ≥ 1/4 mile wide; occasionally flooded, usually well drained"
+29,mesic,Other Mesic,All moderately moist sites not described above
+31,hydric,Swamps/Bogs,"Low, wet, forested areas flooded for long periods"
+32,hydric,Small Drains,"Narrow, wet drainage areas without well-defined channels"
+33,hydric,Bays and wet pocosins,Boggy sites with organic soils; may dry during drought
+34,hydric,Beaver ponds,
+35,hydric,Cypress ponds,
+39,hydric,Other Hydric,All other wet physiographic sites

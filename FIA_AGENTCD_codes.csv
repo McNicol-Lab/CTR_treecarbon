@@ -1,0 +1,10 @@
+﻿AGENTCD,agent_type
+0,NA
+10,Insect
+20,Disease
+30,Fire
+40,Animal
+50,Weather
+60,Veg
+70,Unknown
+80,Silvicultural

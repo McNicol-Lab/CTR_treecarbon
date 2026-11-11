@@ -1,0 +1,8 @@
+﻿WATERCD,wateronplot,Description
+0,None,no water sources within the sampled condition class(es)
+1,Permanent streams or ponds,too small to qualify as noncensus water
+2,Permanent water,"in the form of deep swamps, bogs, marshes (<1 acre) or with standing trees"
+3,Ditch/canal,"human-made channels for irrigation or drainage, too small to qualify as noncensus water"
+4,Temporary streams,
+5,Flood zones,evidence of flooding when water exceeds natural banks
+9,Other temporary water,

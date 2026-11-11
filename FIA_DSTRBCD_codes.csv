@@ -1,0 +1,32 @@
+﻿DSTRBCD1,DSTRBCD2,DSTRBCD3,disturbance_type,disturbance_cat
+0,0,0,NA,NA
+10,10,10,Insect damage,Insect
+11,11,11,Insect damage to understory vegetation,Insect
+12,12,12,Insect damage to trees including seedlings and saplings,Insect
+20,20,20,Disease damage,Disease
+21,21,21,Disease damage to understory vegetation,Disease
+22,22,22,Disease damage to trees including seedlings and saplings,Disease
+30,30,30,Fire damage from crown and ground fire either prescribed or natural,Fire
+31,31,31,Ground fire damage,Fire
+32,32,32,Crown fire damage,Fire
+40,40,40,Animal damage,Animal
+41,41,41,Beaver includes flooding caused by beaver,Animal
+42,42,42,Porcupine,Animal
+43,43,43,Deer or ungulate,Animal
+44,44,44,Bear,Animal
+45,45,45,Rabbit,Animal
+46,46,46,Domestic animal or livestock includes grazing,Animal
+50,50,50,Weather damage,Weather
+51,51,51,Ice,Weather
+52,52,52,Wind includes hurricane tornado,Weather
+53,53,53,Flooding weather induced,Weather
+54,54,54,Drought,Drought
+60,60,60,Vegetation suppression competition vines,Veg
+70,70,70,Unknown not sure other,Unknown
+80,80,80,Human-induced damage any significant threshold of human-caused damage not described in the disturbance or treatment codes,Human
+90,90,90,Geologic disturbances,Geologic
+91,91,91,Landslide,Landslide
+92,92,92,Avalanche track,Geologic
+93,93,93,Volcanic blast zone,Geologic
+94,94,94,Other geologic event,Geologic
+95,95,95,Earth movement or avalanches,Geologic
