@@ -2,7 +2,12 @@
 title: "SEAK FIA Tree Carbon Stock Calculations"
 author: "Jessica Murray"
 date: "2025-09-16"
-output: html_document
+output: 
+  tufte::tufte_html:
+    css: notebook.css
+    tufte_variant: "envisioned"
+    highlight: pygments
+link-citations: yes
 ---
 
 ### Southeast Alaska Tree Carbon Stocks
