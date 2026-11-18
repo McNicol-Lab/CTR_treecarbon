@@ -1,18 +1,17 @@
-﻿Sp.code,Common.Name,a,b,c,se,spg_gcm3,spg_kgm3
-PISI,Sitka spruce,0.99496,-1.98993,0.99496,2.77,0.33,330
-THPL,western redcedar,1.00063,-2.00126,1.00063,1.72,0.31,310
-TSHE,western hemlock,0.97309,-1.43337,0.46028,1.47,0.42,420
-TSME,mountain hemlock,0.97309,-1.43337,0.46028,1.47,0.42,420
-CHNO,Alaska yellow-cedar,0.97982,-1.32688,0.34706,1.14,0.42,420
-PIGL,white spruce,0.97449,-1.42305,0.44856,0.72,0.37,370
-PICO,lodgepole pine,0.99471,-1.30771,0.313,0.58,0.38,380
-ABLA,subalpine fir,1.00965,-1.43135,0.4217,0.67,0.31,310
-ALRU,red alder,0.97576,-1.22922,0.25347,0.64,0.37,370
-,quaking aspen,0.95806,-1.33682,0.37877,0.72,,
-,,,,,,,
-,black cottonwood,0.9615,-1.58271,0.62121,1.54,,
-,Douglas-fir,0.85458,-1.29771,0.44313,2.05,,
-,bigleaf maple,0.95997,-1.46336,0.50339,0.99,,
-,paper birch,0.98982,-1.55259,0.56277,0.75,,
-,western white pine,0.96272,-1.37551,0.41279,0.76,,
-,ponderosa pine,0.90178,-1.28594,0.38416,1.21,,
+﻿Common.Name,a,b,c,se
+Sitka spruce,0.99496,-1.98993,0.99496,2.77
+western redcedar,1.00063,-2.00126,1.00063,1.72
+western hemlock,0.97309,-1.43337,0.46028,1.47
+mountain hemlock,0.97309,-1.43337,0.46028,1.47
+Alaska yellow-cedar,0.97982,-1.32688,0.34706,1.14
+white spruce,0.97449,-1.42305,0.44856,0.72
+lodgepole pine,0.99471,-1.30771,0.313,0.58
+subalpine fir,1.00965,-1.43135,0.4217,0.67
+red alder,0.97576,-1.22922,0.25347,0.64
+quaking aspen,0.95806,-1.33682,0.37877,0.72
+black cottonwood,0.9615,-1.58271,0.62121,1.54
+Douglas-fir,0.85458,-1.29771,0.44313,2.05
+bigleaf maple,0.95997,-1.46336,0.50339,0.99
+paper birch,0.98982,-1.55259,0.56277,0.75
+western white pine,0.96272,-1.37551,0.41279,0.76
+ponderosa pine,0.90178,-1.28594,0.38416,1.21

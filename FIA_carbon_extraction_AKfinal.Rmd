@@ -109,10 +109,6 @@ dd_tree <- tibble::tribble(
 knitr::kable(dd_tree, col.names = c("Variable", "Description", "Units / codes"))
 ```
 
-#### FIA tree carbon estimates
-
-Here I use FIA height and diameter measurements to estimate stem biomass (including standing dead) with the Kozak equation by species and by forest type (Kozak et al. 1969, Carter and Buma 2024).
-
 #### Downloading FIA data
 The zip file containing all FIA tables for Alaska was downloaded at the FIA data mart (https://research.fs.usda.gov/products/dataandtools/fia-datamart). Then, I used the `rFIA` package (https://doserlab.com/files/rfia/) to clip the files in the AK statewide zip folder into my extent of interest - in this case, I used a shape file of the coastal temperate rainforest extent from Data Basin by the Conservation Biology Institute (https://databasin.org/datasets/9bb9859d08bb49e1890b953199507b0c/).
 
@@ -246,35 +242,160 @@ trees <- trees[trees$HT_m >= trees$ACTUALHT_m,]
 trees$DBH.in <- trees$DIA
 trees$Ht.act.ft <- trees$ACTUALHT
 trees$HT.ft <- trees$HT
+```
 
-area_kozak_m2 <- function(h, D, H, a, b, c) {
+
+### Tree biomass estimates
+
+There are two allometric approaches used to estimate tree volume from DBH and height for the North Pacific Coastal Temperate Rainforest, which includes southeast Alaska and coastal B.C.. The Canadian Ministry of Forests uses the Kozak tapering equation (Kozak 1969) to estimate tree volume for Coastal B.C., while the models used by US Forest Service depend on species and ecoregion (SEAK = Ecoregion M240).
+
+
+### Kozak integration ("Canadian Version")
+**expand upon this section
+
+The Kozak et al. 1969 equation is used to calculate the diameter (in) at the broken height, and then the cross-sectional area at the broken height, which is integrated from 0 to the height of break (`Ht.act.ft`). Here `d` is the diameter (in) at the broken height, `h` is the height of break, `D` is the dbh (in), and `H` is the model height (`HT.ft`, the predicted height if unbroken). `a`, `b`, and `c` are species-specific constants. `area_kozak_ft2()` returns area in ft^2^ (this redefines the functions in the previous section, now using `pi` and keeping feet), and `integrate_area_kozak()` is the point-estimate version that returns volume in ft^3^, converted to m^3^ as `volume_kozak_m3`.
+
+We are going to use the USFS-provided wood density and biomass to carbon values to convert volume to biomass.
+
+`WOOD_SPGR_GREENVOL_DRYWT` (specific wood density) comes from `REF_SPECIES`. Volume is converted to stem biomass (`stem_biomass.kg`), and then scaled to a per-hectare basis (`stem_biomass.kg.ha`) with `Plot.Area.ha`.
+
+```{r Kozak integration, warning=FALSE, message=FALSE}
+
+constants <- read.csv("kozak_constants.csv")
+constants <- constants %>% select(Common.Name, a, b, c)
+constants <- constants %>% rename(kozak_a = a,
+                                  kozak_b = b,
+                                  kozak_c = c)
+
+trees <- trees %>% left_join(constants, by=
+                               "Common.Name")
+
+
+trees <- trees %>% drop_na(c(Ht.act.ft, DBH.in, HT.ft, kozak_a, kozak_b, kozak_c))
+
+area_kozak_ft2 <- function(h, D, H, a, b, c) {
   d <- D * sqrt(b*((h/H)-1) + c*(((h^2)/(H^2))-1))
   d_ft <- d/12
   r_ft <- d_ft/2
-  a_ft2 <- (r_ft^2)*3.14
-  a_m2 <- a_ft2/10.764
-  return(a_m2)
+  a_ft2 <- (r_ft^2)*pi
+  return(a_ft2)
 } ## EQ 4 in Kozak 1969
 
-integrate_area_kozak <- function(h_ft, dbh_in, H_ft, a, b, c) {
-  storage <- integrate(area_kozak_m2,
+integrate_area_kozak <- function(h_ft, dbh_in, H_ft, kozak_a, kozak_b, kozak_c) {
+  storage <- integrate(area_kozak_ft2,
                        lower = 0,
                        upper=h_ft,
                        D=dbh_in,
                        H=H_ft,
-                       a=a,
-                       b=b,
-                       c=c)
+                       a=kozak_a,
+                       b=kozak_b,
+                       c=kozak_c)
   return(tryCatch(storage[[1]], error = function(e) NA))
 }
 
-constants <- read.csv("kozak_constants.csv")
-trees$a <- constants$a[match(trees$Common.Name, constants$Common.Name)] 
-trees$b <- constants$b[match(trees$Common.Name, constants$Common.Name)]
-trees$c <- constants$c[match(trees$Common.Name, constants$Common.Name)]
+ trees$volume_kozak_ft3 <- mapply(integrate_area_kozak, trees$Ht.act.ft, trees$DBH.in, trees$HT.ft, trees$kozak_a, trees$kozak_b, trees$kozak_c)
 
-trees <- trees %>% drop_na(c(Ht.act.ft, DBH.in, HT.ft, a, b, c))
+trees$volume_kozak_m3 <- trees$volume_kozak_ft3 * 0.0283168
+
+reftable <- read.csv("REF_SPECIES.csv")
+reftable <- reftable %>% select(SPCD, WOOD_SPGR_GREENVOL_DRYWT, CARBON_RATIO_LIVE)
+trees <- trees %>% left_join(reftable, by = c("SPCD"))
+
+trees <- trees %>% mutate(stem_biomass.kg = volume_kozak_m3*trees$WOOD_SPGR_GREENVOL_DRYWT*1000)
+
 ```
+Now NSVB calculations ("U.S. Version")
+
+The U.S. Forest Services uses the National Scale Volume & Biomass (NSVB) system to generate estimates of tree volume and biomass, including for different components, for all species in the National Forest System. NSVB relies on a set of four equations for estimating volume for different tree components. The model used depends on species and ecodivision (this refers to eco-region, as determined by Cleland et al., 2007, with a simplified map available on page 3 of the NSVB handbook: Westfall et al., 2024). The coefficients used depends on the component you want to estimate, with a different table of coefficients for each component available here: https://doi.org/10.2737/WO-GTR-104-Supp1
+
+Model 1 is the Shumacher-Hall Model
+Model 2 is the Segmented Model. There are two variations of this model depending on diameter class, determined by woodtype (softwood or hardwood) and the cutoff, k. 
+Model 3 is the Continuously Variable Model
+Model 4 is the Modified Wiley model.
+
+These models use DBH in inches (`DBH.in`) and estimated height (`HT`) in feet to calculate volume. In the case of a broken top, model 6 is used to adjust the volume estimates using the `ACTUALHT` variable. 
+
+For species in Southeast Alaska, either Model 1 or 2 are used. 
+
+Model 1 (Schumacher-Hall model)
+to compare with Kozak, want inside-bark (Table S1a)
+y = a x D^b x H^c + E
+
+y= observed value of the component to be estimated (weight or volume), Di is DBH (in), Hi is total tree height (ft), E is random residual error
+
+Model 2 (Segmented model)
+y = a x D^b x H^c + E; D<k
+y = a x k^(b-b1) x D^b1 x H^c + E; D >k
+k= 9.0 for softwoods, 11.0 for hardwoods
+
+Model 6 (Broken top adjustment)
+Ratio R1 = [1-(1-ACTUALHT/HT)^alpha]^Beta
+
+### Here we will estimate inside-bark volume and biomass, which comes from Table S1a from the NSVB. Coefficients for Model 5 (the broken top adjustment) are in Table S5a.
+```{r}
+options(scipen = 999)
+
+coef <- read.csv("FIA_nsvb_Tables/Table S1a_volib_coefs_spcd.csv")
+coef <- coef %>% rename(nsvb_a = a,
+                        nsvb_a1 = a1,
+                        nsvb_b = b,
+                        nsvb_b1 = b1,
+                        nsvb_c = c)
+
+broken_coef <- read.csv("FIA_nsvb_Tables/Table S5a_rcumib_coefs_spcd.csv")
+broken_coef <- broken_coef %>% rename(nsvb_alpha = alpha,
+                                      nsvb_beta = beta)
+broken_coef <- broken_coef %>% select(-model)
+
+trees <- trees %>% mutate(DIVISION = "M240")
+
+trees <- trees %>% 
+  mutate(woodtype = if_else(Common.Name %in% c("red alder", "black cottonwood", "paper birch"), "Hardwood", "Softwood")) # alder is the only softwood species with Kozak estimates.
+
+trees <- trees %>% mutate(k = case_when(woodtype == "Softwood" ~ 9,
+                                        woodtype == "Hardwood" ~ 11))
+
+trees <- trees %>% left_join(coef, by = c("SPCD", "DIVISION"))
+trees <- trees %>% left_join(broken_coef, by = c("SPCD", "DIVISION"))
+trees <- trees %>% mutate(nsvb_stemvolume_ft3_est =  case_when(model == 1 ~ nsvb_a * (DBH.in^nsvb_b) * (HT^nsvb_c),
+                                                model == 2 & DBH.in < k ~  nsvb_a * (DBH.in^nsvb_b) * (HT^nsvb_c),
+                                                model == 2 & DBH.in >= k ~ nsvb_a * k^(nsvb_b - nsvb_b1) * (DBH.in^nsvb_b1) * (HT^nsvb_c)))                         
+#now adjust for broken tops
+trees <- trees %>% mutate(brokenratio = (1-(1-ACTUALHT/HT)^nsvb_alpha)^nsvb_beta,
+                          broken_status = case_when(HT_m > ACTUALHT_m ~ "broken",
+                                                    HT_m == ACTUALHT_m ~ "intact"))
+trees <- trees %>% mutate(nsvb_stemvolume_ft3_act = 
+                            if_else(broken_status == "broken", nsvb_stemvolume_ft3_est *brokenratio,
+                                    nsvb_stemvolume_ft3_est))
+
+trees <- trees %>% mutate(nsvb_stemvolume_m3 = nsvb_stemvolume_ft3_act * 0.0283168)
+trees <- trees %>% mutate(nsvb_stembiomass_kg = nsvb_stemvolume_m3 * WOOD_SPGR_GREENVOL_DRYWT*1000)
+
+
+```
+
+```{r}
+#check that my calculations align with the FIA output
+trees %>% 
+  ggplot(aes(x= DRYBIO_STEM*0.454, y=nsvb_stembiomass_kg, color = Common.Name)) +
+  geom_point() +
+  geom_abline(yintercept = 1)
+
+```
+#### Compare Kozak estimates with NSVB estimates.
+
+```{r, echo=FALSE}
+
+trees %>% 
+  filter(Common.Name %in% c("Alaska yellow-cedar", "mountain hemlock", "lodgepole pine", "Sitka spruce", "western hemlock", "western redcedar")) %>% 
+  ggplot(aes(x=nsvb_stembiomass_kg, y = stem_biomass.kg, color = Common.Name))+
+  geom_point(alpha=0.5) +
+  geom_abline(slope = 1, linetype = "dashed") +
+  ylab("Kozak stem biomass, kg") +
+  xlab("nsvb stem biomass, kg") +
+  theme_minimal()
+
+``` 
 
 ### Calculate plot areas
 
@@ -312,64 +433,12 @@ trees$Plot.Area.ha <- trees$subP.Max*trees$SubP.Area.m2/10000
 
 ```
 
-### Kozak integration
-**expand upon this section
-
-The Kozak et al. 1969 equation is used to calculate the diameter (in) at the broken height, and then the cross-sectional area at the broken height, which is integrated from 0 to the height of break (`Ht.act.ft`). Here `d` is the diameter (in) at the broken height, `h` is the height of break, `D` is the dbh (in), and `H` is the model height (`HT.ft`, the predicted height if unbroken). `a`, `b`, and `c` are species-specific constants. `area_kozak_ft2()` returns area in ft^2^ (this redefines the functions in the previous section, now using `pi` and keeping feet), and `integrate_area_kozak()` is the point-estimate version that returns volume in ft^3^, converted to m^3^ as `volume_kozak_m3`.
-
-`Density.kg.m3` (specific wood density) comes from `constants$spg_kgm3`. Volume is converted to stem biomass (`stem_biomass.kg`), and then scaled to a per-hectare basis (`stem_biomass.kg.ha`) with `Plot.Area.ha`.
-
-```{r Kozak integration, warning=FALSE, message=FALSE}
-area_kozak_ft2 <- function(h, D, H, a, b, c) {
-  d <- D * sqrt(b*((h/H)-1) + c*(((h^2)/(H^2))-1))
-  d_ft <- d/12
-  r_ft <- d_ft/2
-  a_ft2 <- (r_ft^2)*pi
-  return(a_ft2)
-} ## EQ 4 in Kozak 1969
-
-integrate_area_kozak <- function(h_ft, dbh_in, H_ft, a, b, c) {
-  storage <- integrate(area_kozak_ft2,
-                       lower = 0,
-                       upper=h_ft,
-                       D=dbh_in,
-                       H=H_ft,
-                       a=a,
-                       b=b,
-                       c=c)
-  return(tryCatch(storage[[1]], error = function(e) NA))
-}
-
- trees$volume_kozak_ft3 <- mapply(integrate_area_kozak, trees$Ht.act.ft, trees$DBH.in, trees$HT.ft, trees$a, trees$b, trees$c)
-
-  trees$volume_kozak_m3 <- trees$volume_kozak_ft3 * 0.0283168
-
-trees$Density.kg.m3 <- constants$spg_kgm3[match(trees$Common.Name, constants$Common.Name)]
-
-trees$stem_biomass.kg <- trees$volume_kozak_m3*trees$Density.kg.m3
+```{r}
 
 trees <- trees %>% mutate(stem_biomass.kg.ha = stem_biomass.kg/Plot.Area.ha)
+
+
 ```
-
-#### Compare Kozak estimates with the FIA-provided, component ratio method estimates
-
-`DRYBIO_STEM` (lb) is converted to kg as `cr_drybio_stem_kg` and plotted against the Kozak estimate `stem_biomass.kg`; the dashed line is 1:1.
-
-Component ratio method citations: Woodall et al., 2011; Westfall et al., 2024.
-```{r, echo=FALSE}
-
-trees <- trees %>% mutate(cr_drybio_stem_kg = DRYBIO_STEM*0.454)
-trees %>% 
-  filter(Common.Name %in% c("Alaska yellow-cedar", "mountain hemlock", "lodgepole pine", "Sitka spruce", "western hemlock", "western redcedar")) %>% 
-  ggplot(aes(x=cr_drybio_stem_kg, y = stem_biomass.kg, color = Common.Name))+
-  geom_point(alpha=0.5) +
-  geom_abline(slope = 1, linetype = "dashed") +
-  ylab("Kozak stem biomass, kg") +
-  xlab("CRM stem biomass, kg") +
-  theme_minimal()
-
-``` 
-
 #### Basal area
 ```{r calculate basal area, warning=FALSE, message = FALSE}
 trees <- trees %>% 
@@ -390,16 +459,13 @@ decaytable <- decaytable %>%
 decaytable <- decaytable %>% 
   mutate(deadcarbonratio = C.fraction/100)
 
-reftable <- read.csv("REF_SPECIES.CSV")
-
-reftable <- reftable %>% 
-  rename("Common.Name" = "COMMON_NAME")
-
-trees <- reftable %>% select(Common.Name, CARBON_RATIO_LIVE) %>% 
-  right_join(trees, by= "Common.Name")
-
-trees <- trees %>% 
-  mutate(woodtype = if_else(Common.Name == "red alder", "Hardwood", "Softwood"))
+# reftable <- read.csv("REF_SPECIES.CSV")
+# 
+# reftable <- reftable %>% 
+#   rename("Common.Name" = "COMMON_NAME")
+# 
+# trees <- reftable %>% select(Common.Name, CARBON_RATIO_LIVE) %>% 
+#   right_join(trees, by= "Common.Name")
 
 trees <- trees %>% left_join(decaytable, by = c("DECAYCD", "woodtype"))
 
@@ -461,8 +527,8 @@ trees <- trees %>%
   arrange(uniquetreeid, INVYR) %>%
   group_by(uniquetreeid) %>%
   mutate(
-    broken_status = case_when(HT_m > ACTUALHT_m ~ "broken",
-                              HT_m == ACTUALHT_m ~ "intact"),
+  #   broken_status = case_when(HT_m > ACTUALHT_m ~ "broken",
+  #                             HT_m == ACTUALHT_m ~ "intact"),
     prev_dia = lag(DBH.in),
     recruitment_flag = if_else(
       !is.na(prev_dia) & prev_dia < 5 & DBH.in >= 5,
@@ -949,6 +1015,8 @@ plotbiomass_final %>%
 
 ### References cited
 
+BC Ministry of Forests. (2020). CGNF compilation standards for the Coast Forest Area. Timber Pricing Branch. https://www2.gov.bc.ca/gov/content/industry/forestry/competitive-forest-industry/timber-pricing/timber-cruising/cgnf-compilation-standards-for-the-coast-forest-region-manual
+
 Burrill, E. A., Christiansen, G., Conkling, B. L., DiTommaso, A. M., Lepine, L. C., Perry, C. J., ... & Walker, D. M. (2024). The Forest Inventory and Analysis Database User Guide.
 
 Gray, A., Brandeis, T., Shaw, J. D., McWilliams, W., & Miles, P. D. (2012). Forest inventory and analysis database of the United States of America (FIA). In: Dengler, J.; Oldeland, J.; Jansen, F.; Chytry, M.; Ewald, J., Finckh, M.; Glockler, F.; Lopez-Gonzalez, G.; Peet, RK; Schaminee, J. HJ, eds. Vegetation databases for the 21st century. Biodiversity and Ecology. 4: 225-231., 225-231.
@@ -956,5 +1024,3 @@ Gray, A., Brandeis, T., Shaw, J. D., McWilliams, W., & Miles, P. D. (2012). Fore
 Kozak, A., Munro, D. D., & Smith, J. H. G. (1969). Taper functions and their application in forest inventory. The Forestry Chronicle, 45(4), 278-283.
 
 Westfall, J. A., Coulston, J. W., Gray, A. N., Shaw, J. D., Radtke, P. J., Walker, D. M., ... & Domke, G. M. (2024). A national-scale tree volume, biomass, and carbon modeling system for the United States.
-
-Woodall, C. W., Heath, L. S., Domke, G. M., & Nichols, M. C. (2011). Methods and equations for estimating aboveground volume, biomass, and carbon for trees in the US forest inventory, 2010. Gen. Tech. Rep. NRS-88. Newtown Square, PA: US Department of Agriculture, Forest Service, Northern Research Station. 30 p., 88, 1-30.
